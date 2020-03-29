@@ -1,10 +1,7 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"strings"
 	"time"
 
@@ -12,103 +9,217 @@ import (
 	"github.com/rivo/tview"
 )
 
-var exampleToRun string
-
-func init() {
-	const (
-		defaultGopher = "pocket"
-		usage         = "the variety of gopher"
-	)
-	flag.StringVar(&exampleToRun, "option", defaultGopher, usage)
-}
-
 func main() {
-	flag.Parse()
-	switch exampleToRun {
-	case "1":
-		basic1()
-	case "2":
-		basic2()
-	}
+	basic2()
 }
 
-func basic1() {
-	box := tview.NewBox().SetBorder(true).SetTitle("Hello, world!")
-	if err := tview.NewApplication().SetRoot(box, true).Run(); err != nil {
-		panic(err)
-	}
-}
+const refreshInterval = 500 * time.Millisecond
+const stopped = "▶"
+const running = "Running"
 
-type WorkTimer interface {
-	Start()
-	Pause()
-	IsActive()
+var (
+	table     *tview.Table
+	app       *tview.Application
+	activeRow *int
 
-	CurrentDuration() time.Duration
+	overallTimers *[]Poc
+)
 
-	SetName(string)
-	GetName()
-}
-
-func (s *State) Start() {
-	s.Active = true
-}
-
-type State struct {
-	Duration  time.Duration
-	Name      string
-	Active    bool
-	LastEvent time.Time
+type Poc struct {
+	previous time.Time
+	state    string
+	name     string
+	total    time.Duration
 }
 
 func basic2() {
-	app := tview.NewApplication()
-	table := tview.NewTable().
-		SetBorders(true)
-	lorem := strings.Split("Stop/Start Time Label s/t 00:00 example s/t 00:00 example2 s/t 00:00 example3", " ")
-	cols, rows := 3, 4
-	word := 0
-	for r := 0; r < rows; r++ {
+	toss := 0
+	activeRow = &toss
+	overallTimers = &[]Poc{
+		Poc{
+			state:    running,
+			name:     "INTERNAL: STOP TIMER",
+			previous: time.Now(),
+		},
+		Poc{
+			state:    stopped,
+			name:     "Internal(4)",
+			previous: time.Now(),
+		},
+		Poc{
+			state:    stopped,
+			name:     "Mgmt(5)",
+			previous: time.Now(),
+		},
+		Poc{
+			state:    stopped,
+			name:     "7091 Meetings",
+			previous: time.Now(),
+		},
+	}
+
+	headerRow := strings.Split("Stop/Start Time Label", " ")
+
+	app = tview.NewApplication()
+	table = tview.NewTable().SetBorders(true)
+
+	cols, rows := len(headerRow), len(*overallTimers) // the header row is the hidden stopped timer
+
+	// set header
+	for c := 0; c < cols; c++ {
+		table.SetCell(0, c,
+			tview.NewTableCell(headerRow[c]).
+				SetTextColor(tcell.ColorYellow).
+				SetAlign(tview.AlignCenter))
+	}
+	// set body
+	for r := 1; r < rows; r++ {
 		for c := 0; c < cols; c++ {
-			color := tcell.ColorWhite
-			if c < 1 || r < 1 {
-				color = tcell.ColorYellow
-			}
+			row := formatPOC((*overallTimers)[r])
 			table.SetCell(r, c,
-				tview.NewTableCell(lorem[word]).
-					SetTextColor(color).
+				tview.NewTableCell(row[c]).
+					SetTextColor(tcell.ColorWhite).
 					SetAlign(tview.AlignCenter))
-			word = (word + 1) % len(lorem)
 		}
 	}
-	table.Select(0, 0).SetFixed(1, 1).SetDoneFunc(func(key tcell.Key) {
+
+	table.Select(1, 0).SetFixed(1, 2).SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyEscape {
 			app.Stop()
 		}
 		if key == tcell.KeyEnter {
-			table.SetSelectable(true, true)
+			table.SetSelectable(true, false)
 		}
-	}).SetSelectedFunc(func(row int, column int) {
-		c := table.GetCell(row, column)
-		c.SetTextColor(tcell.ColorRed)
-		c.SetText(currentTimeString())
-		table.SetSelectable(false, false)
-		exampleWrite(row, column)
 	})
+
+	// Redraw always follows this
+	table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlP { // PLUS
+			table.InsertRow(4)
+			cols := 3
+			for c := 0; c < cols; c++ {
+				row := strings.Split("example1 2 4", " ")
+				table.SetCell(4, c,
+					tview.NewTableCell(row[c]).
+						SetTextColor(tcell.ColorWhite).
+						SetAlign(tview.AlignCenter))
+			}
+		}
+		if event.Key() == tcell.KeyCtrlM { // MINUS
+			table.RemoveRow(4)
+		}
+		return event
+	})
+
+	table.SetSelectedFunc(func(newrow int, column int) {
+		if *activeRow != 0 {
+			// toggle the previous timer VISUAL state
+			// toggleRowState(table, *activeRow)
+			cell := table.GetCell(*activeRow, 0)
+			if cell.Text == stopped {
+				cell.SetText(running)
+			} else {
+				cell.SetText(stopped)
+			}
+			// toogle the previous timer STORAGE state, potentially update the name
+			(*overallTimers)[*activeRow].togglePocState(table.GetCell(*activeRow, 2).Text)
+		}
+
+		// toogle the new timer VISUAL state
+		//toggleRowState(table, newrow)
+		// toogle the new timer STORAGE state, potentially udpate the name
+		cell := table.GetCell(newrow, 0)
+		if cell.Text == stopped {
+			cell.SetText(running)
+		} else {
+			cell.SetText(stopped)
+		}
+		(*overallTimers)[newrow].togglePocState(table.GetCell(newrow, 2).Text)
+		// table.SetSelectable(true, false)
+		activeRow = &newrow
+	})
+
+	go updateSelected()
 	if err := app.SetRoot(table, true).Run(); err != nil {
 		panic(err)
 	}
 }
 
-func exampleWrite(row int, column int) {
-	content := []byte(fmt.Sprintf("time: %s, row: %d, column %d", time.Now(), row, column))
-	err := ioutil.WriteFile("hello", content, 0644)
-	if err != nil {
-		log.Fatal(err)
+func updateSelected() {
+	for {
+		time.Sleep(refreshInterval)
+		if activeRow == nil {
+			continue
+		}
+		if *activeRow == 0 {
+			continue
+		}
+		app.QueueUpdateDraw(func() {
+			c := table.GetCell(*activeRow, 1)
+			oldDuration := (*overallTimers)[*activeRow].total
+			eventStart := (*overallTimers)[*activeRow].previous
+			runningDuration := time.Now().Sub(eventStart)
+			c.SetText(
+				formatDuration((runningDuration + oldDuration).Round(time.Second)),
+			)
+		})
 	}
 }
 
-func currentTimeString() string {
-	t := time.Now()
-	return fmt.Sprintf(t.Format("Current time is 15:04:05"))
+func formatPOC(s Poc) []string {
+	return []string{
+		s.state,
+		formatDuration(s.total),
+		s.name,
+	}
+}
+
+func formatDuration(input time.Duration) string {
+	dur := input
+	h := dur / time.Hour
+	dur = dur - (h * time.Hour)
+	m := dur / time.Minute
+	dur = dur - (m * time.Minute)
+	s := dur / time.Second
+	return fmt.Sprintf("%02d:%02d:%02d", h, m, s)
+}
+
+func (p *Poc) togglePocState(cellName string) {
+	if p.state == stopped {
+		p.previous = time.Now()
+		p.state = running
+		return
+	}
+
+	if p.state == running {
+		now := time.Now()
+		dur := now.Sub(p.previous)
+		p.total = p.total + dur
+		p.state = stopped
+		p.previous = now
+		return
+	}
+}
+
+func toggleRowState(t *tview.Table, rawRowIndex int) {
+	cols := 3
+	if rawRowIndex == 0 { // this would handle the stoped timer which needs to happen at somepoint
+		return
+	}
+
+	for c := 0; c < cols; c++ {
+		cell := table.GetCell(rawRowIndex, c)
+		if cell.BackgroundColor == tcell.ColorDefault {
+			cell.SetBackgroundColor(tcell.ColorWhite).SetTextColor(tcell.ColorBlack)
+		} else {
+			cell.SetBackgroundColor(tcell.ColorDefault).SetTextColor(tcell.ColorWhite)
+		}
+		if c == 0 {
+			if cell.Text == stopped {
+				cell.SetText(running)
+			} else {
+				cell.SetText(stopped)
+			}
+		}
+	}
 }
