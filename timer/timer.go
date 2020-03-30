@@ -95,26 +95,3 @@ func (t *Timer) CalculateVisibleDuration(compare time.Time) string {
 }
 
 //////////////////////
-
-func (t *Timer) IsRunning() bool {
-	if t.State != events.Running {
-		return false
-	}
-	return true
-}
-
-func (t *Timer) Events() []events.Event {
-	return t.History
-}
-
-func (t *Timer) Duration() time.Duration {
-	return t.Total
-}
-
-func (t *Timer) SetName(name string) {
-	t.Name = name
-}
-
-func (t *Timer) GetName() string {
-	return t.Name
-}

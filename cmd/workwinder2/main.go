@@ -15,8 +15,6 @@ func main() {
 }
 
 const refreshInterval = 500 * time.Millisecond
-const stopped = "▶"
-const running = "Running"
 
 var (
 	table         *tview.Table
@@ -26,8 +24,8 @@ var (
 )
 
 func basic2() {
-	toss := 0
-	activeRow = &toss
+	zzz := 0
+	activeRow = &zzz
 
 	fakenames := []string{"INTERNAL: STOP TIMER", "Internal (4)", "Mgmt (5)", "7091 Meetings"}
 	for _, v := range fakenames {
@@ -68,32 +66,6 @@ func basic2() {
 		}
 	})
 
-	// Redraw always follows this
-	table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyCtrlP { // PLUS
-			rowToInsert := table.GetRowCount()
-			table.InsertRow(rowToInsert)
-
-			overallTimers = append(overallTimers, timer.CreateTimer("newline"))
-			body := (overallTimers)[rowToInsert].FormatForCell()
-
-			for c := 0; c < len(body); c++ {
-				table.SetCell(rowToInsert, c,
-					tview.NewTableCell(body[c]).
-						SetTextColor(tcell.ColorWhite).
-						SetAlign(tview.AlignCenter))
-			}
-		}
-		return event
-	})
-
-	// table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-	// 	if event.Key() == tcell.KeyCtrlM { // MINUS
-	// 		table.RemoveRow(table.GetRowCount() - 1)
-	// 	}
-	// 	return event
-	// })
-
 	table.SetSelectedFunc(func(newrow int, column int) {
 		if *activeRow == newrow || newrow == 0 { // it shouldn't catch this case but in case it does
 			return
@@ -109,6 +81,33 @@ func basic2() {
 
 		table.SetSelectable(true, false)
 		activeRow = &newrow
+	})
+
+	// Redraw always follows this
+	table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+
+		switch event.Key() {
+		case tcell.KeyCtrlP:
+			rowToInsert := table.GetRowCount()
+			table.InsertRow(rowToInsert)
+
+			overallTimers = append(overallTimers, timer.CreateTimer("newline"))
+			body := (overallTimers)[rowToInsert].FormatForCell()
+
+			for c := 0; c < len(body); c++ {
+				table.SetCell(rowToInsert, c,
+					tview.NewTableCell(body[c]).
+						SetTextColor(tcell.ColorWhite).
+						SetAlign(tview.AlignCenter))
+			}
+			return nil
+			// cant for the life of me get this to work
+			// case tcell.KeyCtrlM:
+			// 	table.RemoveRow(table.GetRowCount())
+			// 	return nil
+		}
+
+		return event
 	})
 
 	go updateSelected()
