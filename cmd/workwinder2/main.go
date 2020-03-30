@@ -84,21 +84,26 @@ func basic2() {
 						SetAlign(tview.AlignCenter))
 			}
 		}
-		if event.Key() == tcell.KeyCtrlM { // MINUS
-			table.RemoveRow(table.GetRowCount())
-		}
 		return event
 	})
+
+	// table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	// 	if event.Key() == tcell.KeyCtrlM { // MINUS
+	// 		table.RemoveRow(table.GetRowCount() - 1)
+	// 	}
+	// 	return event
+	// })
 
 	table.SetSelectedFunc(func(newrow int, column int) {
 		if *activeRow == newrow || newrow == 0 { // it shouldn't catch this case but in case it does
 			return
 		}
 		// TODO handle stopped state and allow for stopping
-		// this is really gross
-		overallTimers[*activeRow].Stop(table.GetCell(*activeRow, 2).Text)
-		table.GetCell(*activeRow, 0).SetText(overallTimers[*activeRow].State)
-
+		// also this is really gross
+		if *activeRow != 0 {
+			overallTimers[*activeRow].Stop(table.GetCell(*activeRow, 2).Text)
+			table.GetCell(*activeRow, 0).SetText(overallTimers[*activeRow].State)
+		}
 		overallTimers[newrow].Start(table.GetCell(newrow, 2).Text)
 		table.GetCell(newrow, 0).SetText(overallTimers[newrow].State)
 
