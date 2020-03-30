@@ -4,8 +4,8 @@ import "time"
 
 // States
 const (
-	// Stop indicates the timer was stopped
-	Stopped string = "Stopped"
+	// Stopped indicates the timer is in a stopped state
+	Stopped string = "▶"
 	// Running indicates the timer is running
 	Running string = "Running"
 	// Create indicates the timer was created
