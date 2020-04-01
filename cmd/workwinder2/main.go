@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"time"
 
@@ -24,6 +26,13 @@ var (
 )
 
 func basic2() {
+	f, err := os.OpenFile("text.log",
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Println(err)
+	}
+	defer f.Close()
+
 	zzz := 0
 	activeRow = &zzz
 
@@ -35,7 +44,8 @@ func basic2() {
 	headerRow := strings.Split("Stop/Start Time Label", " ")
 
 	app = tview.NewApplication()
-	table = tview.NewTable().SetBorders(true)
+	table = tview.NewTable().SetBorders(false).SetSelectable(true, false).
+		SetFixed(1, 1).SetSeparator(tview.Borders.Vertical)
 
 	rows := len(overallTimers) // the header row is the hidden stopped timer
 
@@ -85,14 +95,14 @@ func basic2() {
 
 	// Redraw always follows this
 	table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-
-		switch event.Key() {
-		case tcell.KeyCtrlP:
-			rowToInsert := table.GetRowCount()
+		overallCount := table.GetRowCount()
+		f.WriteString(fmt.Sprintf("key: %v\n", event.Key()))
+		if event.Key() == tcell.KeyCtrlP {
+			rowToInsert := overallCount
 			table.InsertRow(rowToInsert)
 
 			overallTimers = append(overallTimers, timer.CreateTimer("newline"))
-			body := (overallTimers)[rowToInsert].FormatForCell()
+			body := overallTimers[rowToInsert].FormatForCell()
 
 			for c := 0; c < len(body); c++ {
 				table.SetCell(rowToInsert, c,
@@ -100,18 +110,30 @@ func basic2() {
 						SetTextColor(tcell.ColorWhite).
 						SetAlign(tview.AlignCenter))
 			}
-			return nil
-			// cant for the life of me get this to work
-			// case tcell.KeyCtrlM:
-			// 	table.RemoveRow(table.GetRowCount())
-			// 	return nil
+		} else if event.Key() == tcell.KeyCtrlN {
+			table.RemoveRow(overallCount - 1)
 		}
-
 		return event
 	})
+	list := tview.NewList().ShowSecondaryText(false)
+	s := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}
+	for _, v := range s {
+		list.AddItem(v, "Other", 'a', func() {
+			f.WriteString(fmt.Sprintf("list-select: %s\n", v))
+		})
+	}
+	list.SetBorderPadding(0, 1, 2, 2)
+	list.SetHighlightFullLine(true)
+
+	flex := tview.NewFlex().
+		AddItem(tview.NewFlex().
+			SetDirection(tview.FlexRow).
+			AddItem(list, 10, 1, true).
+			AddItem(table, 0, 1, false), 0, 1, true)
 
 	go updateSelected()
-	if err := app.SetRoot(table, true).Run(); err != nil {
+
+	if err := app.SetRoot(flex, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
 }
