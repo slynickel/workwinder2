@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/slynickel/workwinder2/events"
 	"github.com/slynickel/workwinder2/timer"
 
 	"github.com/gdamore/tcell"
@@ -31,9 +30,9 @@ func main() {
 	defer f.Close()
 
 	app = tview.NewApplication()
-	table = tview.NewTable().SetBorders(false).SetSelectable(true, false).
+	table = tview.NewTable().SetBorders(false).SetSelectable(false, false).
 		SetFixed(1, 1).SetSeparator(tview.Borders.Vertical).
-		SetSelectedStyle(tcell.ColorBlue, tcell.ColorGray, 0)
+		SetSelectedStyle(tcell.ColorBlack, tcell.ColorBlue, 0)
 
 	fakenames := []string{"INTERNAL: STOP TIMER", "Internal (4)", "Mgmt (5)", "7091 Meetings"}
 	zero := 0
@@ -112,51 +111,4 @@ func updateSelected() {
 type TimerRow struct {
 	T     *timer.Timer
 	index int
-}
-
-func NewRow(index int, name string) *TimerRow {
-	return &TimerRow{
-		index: index,
-		T:     timer.CreateTimer(name),
-	}
-}
-
-// For now these return the same thing, in the future
-// the input should be an interface or something
-// and you marshal it from a file
-func LoadRow(index int) *TimerRow {
-	return &TimerRow{
-		index: index,
-	}
-}
-
-func (row *TimerRow) InitVisuals(t *tview.Table) {
-	vals := row.T.FormatForCell()
-	for col, text := range vals {
-		newcell := tview.NewTableCell(text)
-		row.TCellSetState(newcell)
-		t.SetCell(row.index, col, newcell)
-	}
-
-}
-
-func (row *TimerRow) UpdateVisuals(t *tview.Table) {
-	vals := row.T.FormatForCell()
-	for col, text := range vals {
-		cell := t.GetCell(row.index, col)
-		cell.SetText(text)
-		row.TCellSetState(cell)
-	}
-}
-
-func (row *TimerRow) TCellSetState(t *tview.TableCell) {
-	t.SetAlign(tview.AlignCenter)
-	switch row.T.State {
-	case events.Running:
-		t.SetTextColor(tcell.ColorBlack).
-			SetBackgroundColor(tcell.ColorWhite)
-	case events.Stopped:
-		t.SetTextColor(tcell.ColorDefault).
-			SetBackgroundColor(tcell.ColorDefault)
-	}
 }

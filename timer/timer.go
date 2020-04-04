@@ -15,11 +15,85 @@ type Timer struct {
 	Total time.Duration
 	// Current state
 	State string
+	// Index is the counter index
+	Index int
 	// LastEvent that occured to get into the current state
 	LastEvent time.Time
 	// History of events
 	History []events.Event
 }
+
+
+func New(index int, name string) *Timer {
+	now := time.Now()
+	return &Timer{
+		Name:      name,
+		State:     events.Stopped,
+		Index: index,
+		LastEvent: now,
+		History: []events.Event{
+			events.Event{
+				Timestamp: now,
+				State:     events.Created,
+				TimerName: name,
+				Index: index,
+			},
+		},
+	}
+}
+
+// For now these return the same thing, in the future
+// the input should be an interface or something
+// and you marshal it from a file
+func Load(index int) *Timer {
+	now := time.Now()
+	return &Timer{
+		Name:      name,
+		State:     events.Stopped,
+		Index: index,
+		LastEvent: now,
+		History: []events.Event{
+			events.Event{
+				Timestamp: now,
+				State:     events.Created,
+				TimerName: name,
+				Index: index,
+			},
+		},
+	}
+}
+
+func (t *Timer) InitVisuals(table *tview.Table) {
+	vals := t.FormatForCell()
+	for col, text := range vals {
+		newcell := tview.NewTableCell(text)
+		t.TCellSetState(newcell)
+		table.SetCell(row.index, col, newcell)
+	}
+
+}
+
+func (row *TimerRow) UpdateVisuals(t *tview.Table) {
+	vals := row.T.FormatForCell()
+	for col, text := range vals {
+		cell := t.GetCell(row.index, col)
+		cell.SetText(text)
+		row.TCellSetState(cell)
+	}
+}
+
+func (row *TimerRow) TCellSetState(t *tview.TableCell) {
+	t.SetAlign(tview.AlignCenter)
+	switch row.T.State {
+	case events.Running:
+		t.SetTextColor(tcell.ColorBlack).
+			SetBackgroundColor(tcell.ColorWhite)
+	case events.Stopped:
+		t.SetTextColor(tcell.ColorDefault).
+			SetBackgroundColor(tcell.ColorDefault)
+	}
+}
+///////
 
 func CreateTimer(name string) *Timer {
 	now := time.Now()
@@ -94,4 +168,4 @@ func (t *Timer) CalculateVisibleDuration(compare time.Time) string {
 	return FormatDuration(dur)
 }
 
-//////////////////////
+func (t *Timer) 

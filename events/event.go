@@ -26,4 +26,6 @@ type Event struct {
 	Duration time.Duration
 	// Total is the total duration at the time of the event
 	Total time.Duration
+	// Index is the timer index
+	Index int
 }
