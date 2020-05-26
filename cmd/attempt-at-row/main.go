@@ -6,8 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/slynickel/workwinder2/timer"
-
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
 )
@@ -106,9 +104,4 @@ func updateSelected() {
 			c.SetText(rows[*activeRow].T.CalculateVisibleDuration(time.Now()))
 		})
 	}
-}
-
-type TimerRow struct {
-	T     *timer.Timer
-	index int
 }

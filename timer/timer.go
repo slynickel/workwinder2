@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gdamore/tcell"
+	"github.com/rivo/tview"
 	"github.com/slynickel/workwinder2/events"
 )
 
@@ -23,20 +25,19 @@ type Timer struct {
 	History []events.Event
 }
 
-
 func New(index int, name string) *Timer {
 	now := time.Now()
 	return &Timer{
 		Name:      name,
 		State:     events.Stopped,
-		Index: index,
+		Index:     index,
 		LastEvent: now,
 		History: []events.Event{
-			events.Event{
+			{
 				Timestamp: now,
 				State:     events.Created,
 				TimerName: name,
-				Index: index,
+				Index:     index,
 			},
 		},
 	}
@@ -48,19 +49,23 @@ func New(index int, name string) *Timer {
 func Load(index int) *Timer {
 	now := time.Now()
 	return &Timer{
-		Name:      name,
+		Name:      "", // TODO LOAD
 		State:     events.Stopped,
-		Index: index,
+		Index:     index,
 		LastEvent: now,
 		History: []events.Event{
-			events.Event{
+			{
 				Timestamp: now,
 				State:     events.Created,
-				TimerName: name,
-				Index: index,
+				TimerName: "", // TODO LOAD,
+				Index:     index,
 			},
 		},
 	}
+}
+
+func (tmr *Timer) Delete(t *tview.Table) {
+	// TODO
 }
 
 func (t *Timer) InitVisuals(table *tview.Table) {
@@ -68,23 +73,23 @@ func (t *Timer) InitVisuals(table *tview.Table) {
 	for col, text := range vals {
 		newcell := tview.NewTableCell(text)
 		t.TCellSetState(newcell)
-		table.SetCell(row.index, col, newcell)
+		table.SetCell(t.Index, col, newcell)
 	}
 
 }
 
-func (row *TimerRow) UpdateVisuals(t *tview.Table) {
-	vals := row.T.FormatForCell()
+func (tmr *Timer) UpdateVisuals(t *tview.Table) {
+	vals := tmr.FormatForCell()
 	for col, text := range vals {
-		cell := t.GetCell(row.index, col)
+		cell := t.GetCell(tmr.Index, col)
 		cell.SetText(text)
-		row.TCellSetState(cell)
+		tmr.TCellSetState(cell)
 	}
 }
 
-func (row *TimerRow) TCellSetState(t *tview.TableCell) {
+func (tmr *Timer) TCellSetState(t *tview.TableCell) {
 	t.SetAlign(tview.AlignCenter)
-	switch row.T.State {
+	switch tmr.State {
 	case events.Running:
 		t.SetTextColor(tcell.ColorBlack).
 			SetBackgroundColor(tcell.ColorWhite)
@@ -93,55 +98,40 @@ func (row *TimerRow) TCellSetState(t *tview.TableCell) {
 			SetBackgroundColor(tcell.ColorDefault)
 	}
 }
-///////
 
-func CreateTimer(name string) *Timer {
-	now := time.Now()
-	return &Timer{
-		Name:      name,
-		State:     events.Stopped,
-		LastEvent: now,
-		History: []events.Event{
-			events.Event{
-				Timestamp: now,
-				State:     events.Created,
-				TimerName: name,
-			},
-		},
-	}
-}
-
-func (t *Timer) Start(name string) {
-	t.Name = name
-	if t.State == events.Running {
+func (tmr *Timer) Start(t *tview.Table) {
+	tmr.Name = t.GetCell(tmr.Index, 2).Text
+	if tmr.State == events.Running {
 		return
 	}
-	t.LastEvent = time.Now()
-	t.History = append(t.History, events.Event{
-		Timestamp: t.LastEvent,
+	tmr.LastEvent = time.Now()
+	tmr.History = append(tmr.History, events.Event{
+		Timestamp: tmr.LastEvent,
 		State:     events.Running,
-		TimerName: name,
-		Total:     t.Total,
+		TimerName: tmr.Name,
+		Total:     tmr.Total,
 	})
-	t.State = events.Running
+	tmr.State = events.Running
+	tmr.UpdateVisuals(t)
 }
 
-func (t *Timer) Stop(name string) {
-	t.Name = name
-	if t.State == events.Stopped {
+func (tmr *Timer) Stop(t *tview.Table) {
+	tmr.Name = t.GetCell(tmr.Index, 2).Text
+	if tmr.State == events.Stopped {
 		return
 	}
 	now := time.Now()
-	eventDuration := now.Sub(t.LastEvent)
-	t.Total = t.Total + eventDuration
-	t.History = append(t.History, events.Event{
+	eventDuration := now.Sub(tmr.LastEvent)
+	tmr.Total = tmr.Total + eventDuration
+	tmr.History = append(tmr.History, events.Event{
 		Timestamp: now,
 		State:     events.Stopped,
-		TimerName: t.Name,
+		TimerName: tmr.Name,
 		Duration:  eventDuration,
-		Total:     t.Total,
+		Total:     tmr.Total,
 	})
-	t.State = events.Stopped
+	tmr.State = events.Stopped
+	tmr.UpdateVisuals(t)
 }
 
 // FormatForCell returns a correctly formatted string array
@@ -167,5 +157,3 @@ func (t *Timer) CalculateVisibleDuration(compare time.Time) string {
 	dur := t.Total + runningDuration
 	return FormatDuration(dur)
 }
-
-func (t *Timer) 

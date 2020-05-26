@@ -37,8 +37,8 @@ func basic2() {
 	activeRow = &zzz
 
 	fakenames := []string{"INTERNAL: STOP TIMER", "Internal (4)", "Mgmt (5)", "7091 Meetings"}
-	for _, v := range fakenames {
-		overallTimers = append(overallTimers, timer.CreateTimer(v))
+	for i, v := range fakenames {
+		overallTimers = append(overallTimers, timer.New(i, v))
 	}
 
 	headerRow := strings.Split("Stop/Start Time Label", " ")
@@ -47,8 +47,6 @@ func basic2() {
 	table = tview.NewTable().SetBorders(false).SetSelectable(true, false).
 		SetFixed(1, 1).SetSeparator(tview.Borders.Vertical)
 
-	rows := len(overallTimers) // the header row is the hidden stopped timer
-
 	// set header
 	for c := 0; c < len(headerRow); c++ {
 		table.SetCell(0, c,
@@ -56,15 +54,9 @@ func basic2() {
 				SetTextColor(tcell.ColorYellow).
 				SetAlign(tview.AlignCenter))
 	}
-	// set body
-	for r := 1; r < rows; r++ {
-		body := overallTimers[r].FormatForCell()
-		for c := 0; c < len(body); c++ {
-			table.SetCell(r, c,
-				tview.NewTableCell(body[c]).
-					SetTextColor(tcell.ColorWhite).
-					SetAlign(tview.AlignCenter))
-		}
+
+	for _, tmr := range overallTimers {
+		tmr.InitVisuals(table)
 	}
 
 	table.Select(1, 0).SetFixed(1, 2).SetDoneFunc(func(key tcell.Key) {
@@ -81,59 +73,29 @@ func basic2() {
 			return
 		}
 		// TODO handle stopped state and allow for stopping
-		// also this is really gross
 		if *activeRow != 0 {
-			overallTimers[*activeRow].Stop(table.GetCell(*activeRow, 2).Text)
-			table.GetCell(*activeRow, 0).SetText(overallTimers[*activeRow].State)
+			overallTimers[*activeRow].Stop(table)
 		}
-		overallTimers[newrow].Start(table.GetCell(newrow, 2).Text)
-		table.GetCell(newrow, 0).SetText(overallTimers[newrow].State)
-
+		overallTimers[newrow].Start(table)
 		table.SetSelectable(true, false)
 		activeRow = &newrow
 	})
 
 	// Redraw always follows this
 	table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		overallCount := table.GetRowCount()
 		f.WriteString(fmt.Sprintf("key: %v\n", event.Key()))
 		if event.Key() == tcell.KeyCtrlP {
-			rowToInsert := overallCount
-			table.InsertRow(rowToInsert)
-
-			overallTimers = append(overallTimers, timer.CreateTimer("newline"))
-			body := overallTimers[rowToInsert].FormatForCell()
-
-			for c := 0; c < len(body); c++ {
-				table.SetCell(rowToInsert, c,
-					tview.NewTableCell(body[c]).
-						SetTextColor(tcell.ColorWhite).
-						SetAlign(tview.AlignCenter))
-			}
+			overallTimers = append(overallTimers, timer.New(len(overallTimers), "todo, set"))
+			overallTimers[len(overallTimers)-1].InitVisuals(table)
 		} else if event.Key() == tcell.KeyCtrlN {
-			table.RemoveRow(overallCount - 1)
+			table.RemoveRow(overallTimers[len(overallTimers)-1].Index)
 		}
 		return event
 	})
-	list := tview.NewList().ShowSecondaryText(false)
-	s := []string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}
-	for _, v := range s {
-		list.AddItem(v, "Other", 'a', func() {
-			f.WriteString(fmt.Sprintf("list-select: %s\n", v))
-		})
-	}
-	list.SetBorderPadding(0, 1, 2, 2)
-	list.SetHighlightFullLine(true)
-
-	flex := tview.NewFlex().
-		AddItem(tview.NewFlex().
-			SetDirection(tview.FlexRow).
-			AddItem(list, 10, 1, true).
-			AddItem(table, 0, 1, false), 0, 1, true)
 
 	go updateSelected()
 
-	if err := app.SetRoot(flex, true).EnableMouse(true).Run(); err != nil {
+	if err := app.SetRoot(table, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
 }
