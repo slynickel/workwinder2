@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gdamore/tcell"
@@ -19,10 +18,11 @@ func main() {
 const refreshInterval = 500 * time.Millisecond
 
 var (
-	table         *tview.Table
-	app           *tview.Application
-	activeRow     *int
-	overallTimers []*timer.Timer
+	b *timer.Bucket
+	//table         *tview.Table
+	app *tview.Application
+	// activeRow *int
+	// overallTimers []*timer.Timer
 )
 
 func basic2() {
@@ -33,69 +33,73 @@ func basic2() {
 	}
 	defer f.Close()
 
-	zzz := 0
-	activeRow = &zzz
-
-	fakenames := []string{"INTERNAL: STOP TIMER", "Internal (4)", "Mgmt (5)", "7091 Meetings"}
-	for i, v := range fakenames {
-		overallTimers = append(overallTimers, timer.New(i, v))
-	}
-
-	headerRow := strings.Split("Stop/Start Time Label", " ")
+	//zzz := 0
+	//activeRow = &zzz
 
 	app = tview.NewApplication()
-	table = tview.NewTable().SetBorders(false).SetSelectable(true, false).
+	b = timer.InitBucket()
+	b.Table = tview.NewTable().SetBorders(false).SetSelectable(true, false).
 		SetFixed(1, 1).SetSeparator(tview.Borders.Vertical)
 
-	// set header
-	for c := 0; c < len(headerRow); c++ {
-		table.SetCell(0, c,
-			tview.NewTableCell(headerRow[c]).
-				SetTextColor(tcell.ColorYellow).
-				SetAlign(tview.AlignCenter))
+	fakenames := []string{"Stopped", "Internal (4)", "Mgmt (5)", "7091 Meetings"}
+	for _, v := range fakenames {
+		b.Add(v)
+		// overallTimers = append(overallTimers, timer.New(i, v))
 	}
 
-	for _, tmr := range overallTimers {
-		tmr.InitVisuals(table)
-	}
+	// headerRow := strings.Split("Stop/Start Time Stopped", " ")
 
-	table.Select(1, 0).SetFixed(1, 2).SetDoneFunc(func(key tcell.Key) {
+	// // set header
+	// for c := 0; c < len(headerRow); c++ {
+	// 	b.Table.SetCell(0, c,
+	// 		tview.NewTableCell(headerRow[c]).
+	// 			SetTextColor(tcell.ColorYellow).
+	// 			SetAlign(tview.AlignCenter))
+	// }
+
+	// for _, tmr := range overallTimers {
+	// 	tmr.InitVisuals(table)
+	// }
+
+	b.Table.Select(1, 0).SetFixed(1, 2).SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyEscape {
 			app.Stop()
 		}
 		if key == tcell.KeyEnter {
-			table.SetSelectable(true, false)
+			b.Table.SetSelectable(true, false)
 		}
 	})
 
-	table.SetSelectedFunc(func(newrow int, column int) {
-		if *activeRow == newrow || newrow == 0 { // it shouldn't catch this case but in case it does
-			return
-		}
+	b.Table.SetSelectedFunc(func(newrow int, column int) {
+		// if *activeRow == newrow || newrow == 0 { // it shouldn't catch this case but in case it does
+		// 	return
+		// }
+		b.Start(newrow)
 		// TODO handle stopped state and allow for stopping
-		if *activeRow != 0 {
-			overallTimers[*activeRow].Stop(table)
-		}
-		overallTimers[newrow].Start(table)
-		table.SetSelectable(true, false)
-		activeRow = &newrow
+		// if *activeRow != 0 {
+		// 	overallTimers[*activeRow].Stop(table)
+		// }
+		// overallTimers[newrow].Start(table)
+		b.Table.SetSelectable(true, false)
+		// activeRow = &newrow
 	})
 
 	// Redraw always follows this
-	table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	b.Table.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		f.WriteString(fmt.Sprintf("key: %v\n", event.Key()))
 		if event.Key() == tcell.KeyCtrlP {
-			overallTimers = append(overallTimers, timer.New(len(overallTimers), "todo, set"))
-			overallTimers[len(overallTimers)-1].InitVisuals(table)
+			b.Add("TODO")
 		} else if event.Key() == tcell.KeyCtrlN {
-			table.RemoveRow(overallTimers[len(overallTimers)-1].Index)
+			//b.Table.RemoveRow(overallTimers[len(overallTimers)-1].Index)
 		}
 		return event
 	})
 
+	b.Start(0)
+
 	go updateSelected()
 
-	if err := app.SetRoot(table, true).EnableMouse(true).Run(); err != nil {
+	if err := app.SetRoot(b.Table, true).EnableMouse(true).Run(); err != nil {
 		panic(err)
 	}
 }
@@ -103,15 +107,12 @@ func basic2() {
 func updateSelected() {
 	for {
 		time.Sleep(refreshInterval)
-		if activeRow == nil {
-			continue
-		}
-		if *activeRow == 0 { // stopped
-			continue
-		}
+		//a := b.ActiveRow()
+		// if a == 0 { // stopped
+		// 	continue
+		// }
 		app.QueueUpdateDraw(func() {
-			c := table.GetCell(*activeRow, 1)
-			c.SetText(overallTimers[*activeRow].CalculateVisibleDuration(time.Now()))
+			b.RefreshActive()
 		})
 	}
 }

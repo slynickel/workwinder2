@@ -25,6 +25,62 @@ type Timer struct {
 	History []events.Event
 }
 
+// Bucket holds everything else
+type Bucket struct {
+	Tmrs  []*Timer
+	Table *tview.Table
+}
+
+func InitBucket() *Bucket {
+	return &Bucket{
+		Tmrs: []*Timer{},
+	}
+}
+
+func (b *Bucket) Add(name string) int {
+	i := len(b.Tmrs)
+	b.Tmrs = append(b.Tmrs, New(i, name))
+	b.Tmrs[i].InitVisuals(b.Table)
+	return i
+}
+
+// Start returns the previously active row after stopping it
+// and starting the timer at the new index
+func (b *Bucket) Start(newIndex int) int {
+	a := b.ActiveRow()
+	if a == newIndex {
+		return a
+	}
+	if a != -1 {
+		b.Tmrs[a].Stop(b.Table)
+	}
+
+	if newIndex == 0 {
+		b.Stopped()
+		return a
+	}
+	b.Tmrs[newIndex].Start(b.Table)
+	return a
+}
+
+func (b *Bucket) Stopped() {
+	b.Tmrs[0].Start(b.Table)
+}
+
+func (b *Bucket) ActiveRow() int {
+	for i, t := range b.Tmrs {
+		if t.State == events.Running {
+			return i
+		}
+	}
+	return -1 // shouldn't be reachable
+}
+
+func (b *Bucket) RefreshActive() {
+	a := b.ActiveRow()
+	b.Table.GetCell(a, 1).SetText(b.Tmrs[a].CalculateVisibleDuration(time.Now()))
+}
+
 func New(index int, name string) *Timer {
 	now := time.Now()
 	return &Timer{
@@ -75,7 +131,6 @@ func (t *Timer) InitVisuals(table *tview.Table) {
 		t.TCellSetState(newcell)
 		table.SetCell(t.Index, col, newcell)
 	}
-
 }
 
 func (tmr *Timer) UpdateVisuals(t *tview.Table) {
