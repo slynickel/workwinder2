@@ -18,11 +18,8 @@ func main() {
 const refreshInterval = 500 * time.Millisecond
 
 var (
-	b *timer.Bucket
-	//table         *tview.Table
+	b   *timer.Bucket
 	app *tview.Application
-	// activeRow *int
-	// overallTimers []*timer.Timer
 )
 
 func basic2() {
@@ -33,9 +30,6 @@ func basic2() {
 	}
 	defer f.Close()
 
-	//zzz := 0
-	//activeRow = &zzz
-
 	app = tview.NewApplication()
 	b = timer.InitBucket()
 	b.Table = tview.NewTable().SetBorders(false).SetSelectable(true, false).
@@ -44,22 +38,7 @@ func basic2() {
 	fakenames := []string{"Stopped", "Internal (4)", "Mgmt (5)", "7091 Meetings"}
 	for _, v := range fakenames {
 		b.Add(v)
-		// overallTimers = append(overallTimers, timer.New(i, v))
 	}
-
-	// headerRow := strings.Split("Stop/Start Time Stopped", " ")
-
-	// // set header
-	// for c := 0; c < len(headerRow); c++ {
-	// 	b.Table.SetCell(0, c,
-	// 		tview.NewTableCell(headerRow[c]).
-	// 			SetTextColor(tcell.ColorYellow).
-	// 			SetAlign(tview.AlignCenter))
-	// }
-
-	// for _, tmr := range overallTimers {
-	// 	tmr.InitVisuals(table)
-	// }
 
 	b.Table.Select(1, 0).SetFixed(1, 2).SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyEscape {
@@ -71,17 +50,8 @@ func basic2() {
 	})
 
 	b.Table.SetSelectedFunc(func(newrow int, column int) {
-		// if *activeRow == newrow || newrow == 0 { // it shouldn't catch this case but in case it does
-		// 	return
-		// }
 		b.Start(newrow)
-		// TODO handle stopped state and allow for stopping
-		// if *activeRow != 0 {
-		// 	overallTimers[*activeRow].Stop(table)
-		// }
-		// overallTimers[newrow].Start(table)
 		b.Table.SetSelectable(true, false)
-		// activeRow = &newrow
 	})
 
 	// Redraw always follows this
@@ -107,10 +77,6 @@ func basic2() {
 func updateSelected() {
 	for {
 		time.Sleep(refreshInterval)
-		//a := b.ActiveRow()
-		// if a == 0 { // stopped
-		// 	continue
-		// }
 		app.QueueUpdateDraw(func() {
 			b.RefreshActive()
 		})
