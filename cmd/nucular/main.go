@@ -24,8 +24,13 @@ func init() {
 
 func main() {
 	s := newSettings()
-	Wnd := nucular.NewMasterWindowSize(0, "WorkWinder2", image.Point{X: 360, Y: 600}, s.run)
-	Wnd.SetStyle(style.FromTheme(themesN[s.Theme], 1.0))
+	Wnd := nucular.NewMasterWindowSize(
+		nucular.WindowDefaultFlags,
+		"WorkWinder2",
+		image.Point{X: 380, Y: 600},
+		s.run,
+	)
+	Wnd.SetStyle(style.FromTheme(themesN[s.Theme], *s.WindowScaling))
 	go func() {
 		for {
 			time.Sleep(refreshInterval)
@@ -37,3 +42,5 @@ func main() {
 	}()
 	Wnd.Main()
 }
+
+// TODO need to catch window closure and gracefully quit

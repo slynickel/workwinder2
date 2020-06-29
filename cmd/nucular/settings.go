@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"time"
 
 	"github.com/aarzilli/nucular"
@@ -13,8 +15,10 @@ import (
 type settings struct {
 	// Visualization options
 
-	FlashOnStop bool
-	Theme       iThemes
+	FlashOnStop      bool
+	Theme            iThemes
+	WindowScaling    *float64
+	TextBoxMaxLength int
 
 	// Timer Specific Options
 
@@ -32,8 +36,7 @@ type settings struct {
 	timers            []*Timer
 	stopTimer         *Timer
 
-	textBoxes        []nucular.TextEditor
-	textBoxMaxLength int
+	textBoxes []nucular.TextEditor
 }
 
 type TimerEvents int
@@ -66,9 +69,10 @@ type nTheme struct {
 }
 
 var (
-	zeroTime   time.Time
-	themeNames = []string{"Dark", "Default", "Red", "White"}
-	themesN    = []nstyle.Theme{nstyle.DarkTheme, nstyle.DefaultTheme, nstyle.RedTheme, nstyle.WhiteTheme}
+	zeroTime       time.Time
+	themeNames     = []string{"Dark", "Default", "Red", "White"}
+	themesN        = []nstyle.Theme{nstyle.DarkTheme, nstyle.DefaultTheme, nstyle.RedTheme, nstyle.WhiteTheme}
+	scalingDefault = 1.0
 )
 
 // Event is a change of state for a timer
@@ -94,9 +98,9 @@ type Timer struct {
 	// StartTimestamp is the time stamp set ONLY with the TimerStart event and cleared (set to 0) when stopped
 	StartTimestamp time.Time
 	// History of events
-	history []Event
+	History []Event
 	// isTrackingStoppedTime is true when this timer is tracking the amount of time no timer is active
-	isTrackingStoppedTime bool
+	IsTrackingStoppedTime bool
 }
 
 func newSettings() (s *settings) {
@@ -105,23 +109,29 @@ func newSettings() (s *settings) {
 	s.DefaultColumns = []string{"mgmt", "test1", "test2"}
 	s.FlashOnStop = true
 	s.Theme = DarkTheme
-	s.textBoxMaxLength = 256
+	s.WindowScaling = &scalingDefault
+	s.TextBoxMaxLength = 256
 
 	// TODO load current active timer if relevant
 
 	// Initializing structs
 	s.stopTimer = NewTimer(st, true)
-	s.textBoxes = make([]nucular.TextEditor, len(s.DefaultColumns))
-	for i, colName := range s.DefaultColumns {
-		s.timers = append(s.timers, NewTimer(colName, false))
-
-		s.textBoxes[i].Buffer = []rune(s.timers[i].Name)
-		s.textBoxes[i].Maxlen = s.textBoxMaxLength
-		// TODO set s.textBoxes[*].EditFlags but unclear on which ones
+	for _, colName := range s.DefaultColumns {
+		s.addTimer(colName)
 	}
 	// start with stopped timer running
 	s.stateHandler(-1)
 	return s
+}
+
+func (s *settings) addTimer(name string) {
+	index := len(s.timers)
+	s.timers = append(s.timers, NewTimer(name, false))
+	s.textBoxes = append(s.textBoxes, nucular.TextEditor{
+		Buffer: []rune(s.timers[index].Name),
+		Maxlen: s.TextBoxMaxLength,
+	})
+	// TODO set s.textBoxes[*].EditFlags but unclear on which ones
 }
 
 func (s *settings) run(w *nucular.Window) {
@@ -133,16 +143,20 @@ func (s *settings) run(w *nucular.Window) {
 		w.Label("Theme: ", "LC")
 		oldTheme := s.Theme
 		s.Theme = iThemes(w.ComboSimple(themeNames, int(s.Theme), 25))
-		if oldTheme != s.Theme {
-			w.Master().SetStyle(nstyle.FromTheme(themesN[s.Theme], w.Master().Style().Scaling))
+
+		w.Row(30).Dynamic(1)
+		scalingChanged := w.PropertyFloat("Window Scaling: ", 0.6, s.WindowScaling, 1.6, 0.1, 0.1, 3)
+		if scalingChanged || oldTheme != s.Theme {
+			w.Master().SetStyle(nstyle.FromTheme(themesN[s.Theme], *s.WindowScaling))
 		}
 		w.TreePop()
 	}
 
 	// Header Rows
-	w.Row(30).Static(38, 38, 280)
+	w.Row(30).Static(38, 38, 270)
 	if w.Button(label.ST(label.SymbolPlus, "", "RC"), false) {
 		fmt.Print("up")
+		s.addTimer("empty")
 	}
 	if w.Button(label.ST(label.SymbolMinus, "", "RC"), false) {
 		fmt.Print("down")
@@ -179,7 +193,7 @@ func (s *settings) CacluateCurrentOverallTotal(now time.Time) string {
 	return prefix + FormatDuration(now.Sub(s.timers[s.activeIndex].StartTimestamp)+s.overAllSavedTotal)
 }
 
-// stateHandler should only be called on open and button presses
+// stateHandler should only be called on open and button presses otherwise you may end up writing to disk a lot
 func (s *settings) stateHandler(indexOfActive int) {
 	s.activeIndex = indexOfActive
 	if indexOfActive == -1 {
@@ -199,10 +213,29 @@ func (s *settings) stateHandler(indexOfActive int) {
 	for _, t := range s.timers {
 		s.overAllSavedTotal = s.overAllSavedTotal + t.Total
 	}
+	s.writeData()
 }
 
-func (s *settings) addTimer() {
+func (s settings) writeSettings() {
+	b, err := json.Marshal(s)
+	if err != nil {
+		log.Errorf("loadfile: %v", err)
+	}
+	err = ioutil.WriteFile("test-settings.json", b, 0644)
+	if err != nil {
+		log.Errorf("loadfile: %v", err)
+	}
+}
 
+func (s settings) writeData() {
+	b, err := json.Marshal(s.timers)
+	if err != nil {
+		log.Errorf("loadfile: %v", err)
+	}
+	err = ioutil.WriteFile("test.json", b, 0644)
+	if err != nil {
+		log.Errorf("loadfile: %v", err)
+	}
 }
 
 // NewTimer creates a new Timer instance with a state of TimerCreated
@@ -211,7 +244,7 @@ func NewTimer(name string, isTrackingStoppedTime bool) *Timer {
 	t := &Timer{
 		Name:                  name,
 		State:                 TimerCreate,
-		isTrackingStoppedTime: isTrackingStoppedTime,
+		IsTrackingStoppedTime: isTrackingStoppedTime,
 	}
 	t.fileEvent(now)
 	return t
@@ -246,7 +279,7 @@ func (t *Timer) stateChange(event TimerEvents, name string) {
 }
 
 func (t *Timer) fileEvent(now time.Time) {
-	t.history = append(t.history, Event{
+	t.History = append(t.History, Event{
 		Timestamp: now,
 		State:     t.State,
 		TimerName: t.Name,
@@ -267,7 +300,8 @@ func (t *Timer) timerText() label.Label {
 	if t.State == TimerStart {
 		return label.T("Running")
 	}
-	return label.ST(label.SymbolTriangleRight, "", "RC")
+	return label.ST(label.SymbolTriangleRight, "  ", "LC")
+	//return label.S(label.SymbolTriangleRight)
 }
 
 func FormatDuration(d time.Duration) string {
