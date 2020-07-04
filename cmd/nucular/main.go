@@ -1,12 +1,13 @@
 package main
 
 import (
+	"fmt"
 	"image"
 	"os"
 	"time"
 
 	"github.com/aarzilli/nucular"
-	"github.com/aarzilli/nucular/style"
+	nstyle "github.com/aarzilli/nucular/style"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -25,16 +26,19 @@ func init() {
 func main() {
 	s := newSettings()
 	Wnd := nucular.NewMasterWindowSize(
-		nucular.WindowDefaultFlags,
+		nucular.WindowTitle, // Most of the windows flags don't appear to do anything
+		//nucular.WindowClosable|nucular.WindowMovable| << one these settings causes a crash?!
 		"WorkWinder2",
 		image.Point{X: 380, Y: 600},
 		s.run,
 	)
-	Wnd.SetStyle(style.FromTheme(themesN[s.Theme], *s.WindowScaling))
+	Wnd.SetStyle(nstyle.FromTheme(s.Theme, *s.WindowScaling))
+
 	go func() {
 		for {
 			time.Sleep(refreshInterval)
 			if Wnd.Closed() {
+				fmt.Printf("got here")
 				break
 			}
 			Wnd.Changed()

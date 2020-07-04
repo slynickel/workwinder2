@@ -10,13 +10,14 @@ import (
 	"github.com/aarzilli/nucular/label"
 	nstyle "github.com/aarzilli/nucular/style"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/mobile/event/mouse"
 )
 
 type settings struct {
 	// Visualization options
 
 	FlashOnStop      bool
-	Theme            iThemes
+	Theme            nstyle.Theme
 	WindowScaling    *float64
 	TextBoxMaxLength int
 
@@ -54,24 +55,17 @@ const (
 	st = "trackingStoppedTime"
 )
 
-type iThemes int
-
-const (
-	DarkTheme iThemes = iota
-	DefaultTheme
-	RedTheme
-	WhiteTheme
-)
-
-type nTheme struct {
-	Name  string
-	theme nstyle.Theme
-}
-
 var (
-	zeroTime       time.Time
-	themeNames     = []string{"Dark", "Default", "Red", "White"}
-	themesN        = []nstyle.Theme{nstyle.DarkTheme, nstyle.DefaultTheme, nstyle.RedTheme, nstyle.WhiteTheme}
+	zeroTime time.Time
+	// I think the labels on nstyle.Theme are silly. The Default should be
+	// called Dark and vice versa
+	themeNames = []string{"Dark", "White", "Red", "Default"}
+	mapThemes  = map[int]nstyle.Theme{
+		0: nstyle.DefaultTheme,
+		1: nstyle.WhiteTheme,
+		2: nstyle.RedTheme,
+		3: nstyle.DarkTheme,
+	}
 	scalingDefault = 1.0
 )
 
@@ -87,7 +81,9 @@ type Event struct {
 	Total time.Duration
 }
 
-// Timer is the backend structre of data for workwinder
+// TODO rename Timer to Status or something like that so it isn't timer.Timer
+
+// Timer is the backend structure of data for workwinder
 type Timer struct {
 	// Name of current time
 	Name string
@@ -108,9 +104,9 @@ func newSettings() (s *settings) {
 	// TODO load settings file
 	s.DefaultColumns = []string{"mgmt", "test1", "test2"}
 	s.FlashOnStop = true
-	s.Theme = DarkTheme
+	s.Theme = nstyle.DefaultTheme
 	s.WindowScaling = &scalingDefault
-	s.TextBoxMaxLength = 256
+	s.TextBoxMaxLength = 40
 
 	// TODO load current active timer if relevant
 
@@ -134,48 +130,67 @@ func (s *settings) addTimer(name string) {
 	// TODO set s.textBoxes[*].EditFlags but unclear on which ones
 }
 
+// run is the control loop that runs on the clock cycle
 func (s *settings) run(w *nucular.Window) {
 	now := time.Now()
 
 	// Settings Drop Down
 	if w.TreePush(nucular.TreeTab, "Settings", false) {
+		resetStyle := false
+
 		w.Row(30).Dynamic(2)
 		w.Label("Theme: ", "LC")
 		oldTheme := s.Theme
-		s.Theme = iThemes(w.ComboSimple(themeNames, int(s.Theme), 25))
+		s.Theme = mapThemes[w.ComboSimple(themeNames, int(s.Theme), 25)]
+		if oldTheme != s.Theme {
+			resetStyle = true
+		}
+
+		w.Row(30).Dynamic(3)
+		w.Label("Window Scaling: ", "LC")
+		w.Label(fmt.Sprintf("%.1f", *s.WindowScaling), "RC")
+
+		w.SliderFloat(0.5, s.WindowScaling, 4, 0.1)
+		// Only rescale if the mouse isn't pressed down and the value changed
+		if w.Master().Style().Scaling != *s.WindowScaling && !w.Input().Mouse.Down(mouse.ButtonLeft) {
+			resetStyle = true
+		}
 
 		w.Row(30).Dynamic(1)
-		scalingChanged := w.PropertyFloat("Window Scaling: ", 0.6, s.WindowScaling, 1.6, 0.1, 0.1, 3)
-		if scalingChanged || oldTheme != s.Theme {
-			w.Master().SetStyle(nstyle.FromTheme(themesN[s.Theme], *s.WindowScaling))
+		w.Label("Version: 0.0.1", "LC")
+
+		if resetStyle {
+			w.Master().SetStyle(nstyle.FromTheme(s.Theme, *s.WindowScaling))
 		}
+
 		w.TreePop()
 	}
 
 	// Header Rows
-	w.Row(30).Static(38, 38, 270)
+	// Buttons: Plus, Minus, Report
+	w.Row(30).Ratio(0.1, 0.1, 0.8)
 	if w.Button(label.ST(label.SymbolPlus, "", "RC"), false) {
-		fmt.Print("up")
-		s.addTimer("empty")
+		s.addTimer("")
 	}
 	if w.Button(label.ST(label.SymbolMinus, "", "RC"), false) {
-		fmt.Print("down")
+		fmt.Printf("TODO down")
 	}
 	if w.ButtonText("Report") {
-		fmt.Print("report")
+		fmt.Print("TODO report")
 	}
 
-	w.Row(30).Static(80, 280)
+	// Button Stop/Stopped, Total Time
+	w.Row(30).Ratio(0.2, 0.8)
 	if w.ButtonText(s.stopTimer.stopText()) {
 		log.Debug("type: button, index: (stopped), line name: (stopped)")
 		s.stateHandler(-1)
 	}
-	w.Label(s.CacluateCurrentOverallTotal(now), "CC")
+	w.Label(s.CalculateCurrentOverallTotal(now), "CC")
 
 	// Body Rows
 	for i := range s.timers {
-		// play/running, textbox, duration of timer
-		w.Row(30).Static(80, 200, 80)
+		// Button play/running, textbox, Label duration of timer
+		w.Row(30).Ratio(0.2, 0.6, 0.2)
 		if w.Button(s.timers[i].timerText(), false) {
 			log.Debugf("type: button, index: %d, line name: %s", i, s.timers[i].Name)
 			s.stateHandler(i)
@@ -185,7 +200,7 @@ func (s *settings) run(w *nucular.Window) {
 	}
 }
 
-func (s *settings) CacluateCurrentOverallTotal(now time.Time) string {
+func (s *settings) CalculateCurrentOverallTotal(now time.Time) string {
 	prefix := "Total: "
 	if s.activeIndex == -1 {
 		return prefix + FormatDuration(s.overAllSavedTotal)
@@ -221,7 +236,7 @@ func (s settings) writeSettings() {
 	if err != nil {
 		log.Errorf("loadfile: %v", err)
 	}
-	err = ioutil.WriteFile("test-settings.json", b, 0644)
+	err = ioutil.WriteFile("data/test-settings.json", b, 0644)
 	if err != nil {
 		log.Errorf("loadfile: %v", err)
 	}
@@ -232,7 +247,7 @@ func (s settings) writeData() {
 	if err != nil {
 		log.Errorf("loadfile: %v", err)
 	}
-	err = ioutil.WriteFile("test.json", b, 0644)
+	err = ioutil.WriteFile("data/test.json", b, 0644)
 	if err != nil {
 		log.Errorf("loadfile: %v", err)
 	}
@@ -300,7 +315,7 @@ func (t *Timer) timerText() label.Label {
 	if t.State == TimerStart {
 		return label.T("Running")
 	}
-	return label.ST(label.SymbolTriangleRight, "  ", "LC")
+	return label.ST(label.SymbolTriangleRight, " ", "LC")
 	//return label.S(label.SymbolTriangleRight)
 }
 
