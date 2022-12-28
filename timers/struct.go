@@ -6,6 +6,7 @@ import (
 )
 
 // TimerState represents states of a Chronometer
+// timers.Stopped | timers.Started | timers.Created | timers.Loaded
 type TimerState int
 
 // Possible states of a Chronometer

@@ -3,7 +3,8 @@ package timers
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
+	"path"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -100,12 +101,19 @@ func formatDuration(d time.Duration) string {
 }
 
 func (c *Chronometer) writeData() {
+	p := path.Join("data", "test.json")
+
 	b, err := json.MarshalIndent(c, "", "   ")
 	if err != nil {
 		log.Errorf("cannot marshal %v", err)
 		return
 	}
-	err = ioutil.WriteFile("data/test.json", b, 0644)
+	err = os.MkdirAll(path.Dir(p), 0755)
+	if err != nil {
+		log.Errorf("cannot mkdirall: %v", err)
+	}
+
+	err = os.WriteFile(p, b, 0644)
 	if err != nil {
 		log.Errorf("on writefile: %v", err)
 	}
